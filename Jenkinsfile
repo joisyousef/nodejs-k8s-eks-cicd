@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'master' }
+    agent  { label 'local' } 
     stages {
         stage('Install Dependencies') {
             steps {
