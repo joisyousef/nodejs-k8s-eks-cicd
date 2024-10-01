@@ -1,21 +1,13 @@
 pipeline {
-    agent any
+    agent { label 'master' }
     stages {
-        stage('Build') {
+        stage('Install Dependencies') {
             steps {
-                echo 'Building the project...'
-            }
-        }
-        stage('Test') {
-            steps {
-                echo 'Running tests...'
-            }
-        }
-        stage('Deploy') {
-            steps {
-                echo 'Deploying the project...'
+                script {
+                    echo 'Installing Node.js dependencies...'
+                    sh 'npm install'
+                }
             }
         }
     }
 }
-      
