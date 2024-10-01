@@ -1,5 +1,0 @@
-# lint and format staged files
-npx lint-staged
-
-# verify typescript staged files
-npx tsc --build apps/site
