@@ -2,28 +2,37 @@ pipeline {
     agent { label 'jenkins-agent' }
 
     environment {
-        // DockerHub Credentials ID stored in Jenkins
-        DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
 
-        // SonarQube Server configuration name as defined in Jenkins
         SONARQUBE = 'jenkins-sonar-token'
 
-        // GitLab Repository URL
         GIT_REPO = 'https://gitlab.com/joisyousef/nodejs.org.git'
 
-        // Docker Image Name
-        DOCKER_IMAGE = "joisyousef/nodejs-app"
+        RELEASE = "1.0.0"
+        DOCKER_USER = "joisyousef"
+        DOCKER_PASS = "docker-hub-credentials"
+        IMAGE_NAME = "${DOCKER_USER}/${APP_NAME}"
+        IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
 
-        // Kubernetes Namespace
         DEV_NAMESPACE = "development"
         PROD_NAMESPACE = "production"
+
     }
 
+    }
     stages {
+
+        stage('Cleanup Workspace') {
+                    steps {
+                        cleanWs()
+                    }
+                }
+
+
         stage('Checkout Code') {
             steps {
                 echo 'Checking out code from GitLab...'
-                git branch: 'main', url: "${GIT_REPO}"
+
+                git branch: 'main', credentialsId: 'Github-Token'       ,url: "${GIT_REPO}"
             }
         }
 
@@ -51,65 +60,49 @@ pipeline {
         stage('Code Analysis with SonarQube') {
             steps {
                 echo 'Running SonarQube Analysis...'
-                withSonarQubeEnv("${SONARQUBE}") {
+                withSonarQubeEnv("${SONA    RQUBE}") {
                     sh 'sonar-scanner'
                 }
             }
         }
 
-        stage('Dockerize Application') {
+        stage("Build & Push Docker Image") {
             steps {
-                echo 'Building Docker Image...'
                 script {
-                    dockerImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_ID}")
-                }
-            }
-        }
+                    docker.withRegistry('',DOCKER_PASS) {
+                        docker_image = docker.build "${IMAGE_NAME}"
+                    }
 
-        stage('Push Docker Image to DockerHub') {
-            steps {
-                echo 'Pushing Docker Image to DockerHub...'
-                script {
-                    docker.withRegistry('https://registry.hub.docker.com', 'docke-rhub-credentials') {
-                        dockerImage.push()
-                        dockerImage.push('latest') // Tag as latest
+                    docker.withRegistry('',DOCKER_PASS) {
+                        docker_image.push("${IMAGE_TAG}")
+                        docker_image.push('latest')
                     }
                 }
             }
+
         }
 
-         stage('Deploy to Production Namespace') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo 'Deploying to Production Namespace...'
-                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
-                    script {
-                        // Update deployment.yaml with the new image tag and namespace
-                        sh """
-                            sed -i 's|joisyousef/nodejs-app:latest|${DOCKER_IMAGE}:${env.BUILD_ID}|g' k8s/deployment.yaml
-                            sed -i 's|namespace: development|namespace: production|g' k8s/deployment.yaml
-                            sed -i 's|namespace: development|namespace: production|g' k8s/service.yaml
-                            kubectl apply -f k8s/deployment.yaml --namespace=${PROD_NAMESPACE}
-                            kubectl apply -f k8s/service.yaml --namespace=${PROD_NAMESPACE}
-                        """
-                    }
-                }
-            }
-        }
-    }
 
-    post {
-        always {
-            echo 'Cleaning up workspace...'
-            cleanWs()
-        }
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed. Check the logs for details.'
+         stage("Trivy Scan") {
+        steps {
+        script {
+            sh """
+                docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${IMAGE_TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table
+            """
         }
     }
 }
+
+
+        stage ('Cleanup Artifacts') {
+            steps {
+                script {
+                    sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
+                    sh "docker rmi ${IMAGE_NAME}:latest"
+                }
+            }
+        }
+
+
+    }
+
