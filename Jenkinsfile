@@ -48,10 +48,10 @@ pipeline {
             }
         }
 
-        stage('Build Application') {
+        stage('Run Application') {
             steps {
                 echo 'Building the Application...'
-                sh 'npm run build || { echo "Build failed"; exit 1; }'
+                sh 'npx turbo dev'
             }
         }
 
