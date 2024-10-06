@@ -45,7 +45,7 @@ pipeline {
         stage('Run Unit Tests') {
             steps {
                 echo 'Running Unit Tests...'
-                sh 'npm test'
+                sh 'npx turbo test:unit'
             }
         }
 
@@ -53,7 +53,7 @@ pipeline {
         stage('Build Application') {
             steps {
                 echo 'Building the Application...'
-                sh 'npx turbo build || { echo "Build failed"; exit 1; }'
+                sh 'npx turbo run build || { echo "Build failed"; exit 1; }'
             }
         }
 
