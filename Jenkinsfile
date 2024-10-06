@@ -1,45 +1,115 @@
 pipeline {
-    agent { label 'local' }  // Specify the agent to run on (with the 'local' label)
+    agent { label 'jenkins-agent' }
+
+    environment {
+        // DockerHub Credentials ID stored in Jenkins
+        DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
+
+        // SonarQube Server configuration name as defined in Jenkins
+        SONARQUBE = 'Sonarqube-scanner'
+
+        // GitLab Repository URL
+        GIT_REPO = 'https://gitlab.com/joisyousef/nodejs.org.git'
+
+        // Docker Image Name
+        DOCKER_IMAGE = "joisyousef/nodejs-app"
+
+        // Kubernetes Namespace
+        DEV_NAMESPACE = "development"
+        PROD_NAMESPACE = "production"
+    }
 
     stages {
-        // Install dependencies using npm ci
+        stage('Checkout Code') {
+            steps {
+                echo 'Checking out code from GitLab...'
+                git branch: 'main', url: "${GIT_REPO}"
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
-                script {
-                    echo 'Installing Dependencies...'
-                    sh 'npm ci'  // Installs dependencies using package-lock.json
-                }
+                echo 'Installing Dependencies...'
+                sh 'npm install' // Changed from 'npm ci' to 'npm install'
             }
         }
 
-        // Run unit tests (npm test)
         stage('Run Unit Tests') {
             steps {
-                script {
-                    echo 'Running Unit Tests...'
-                    sh 'npm test'  // Executes the npm test command to run unit tests
-                }
+                echo 'Running Unit Tests...'
+                sh 'npm test'
             }
         }
 
-        // Build the application (if necessary)
         stage('Build Application') {
             steps {
-                script {
-                    echo 'Building the Application...'
-                    sh 'npm run build'  // Runs the npm build command, if your app requires it
+                echo 'Building the Application...'
+                sh 'npm run build || { echo "Build failed"; exit 1; }'
+            }
+        }
+
+        stage('Code Analysis with SonarQube') {
+            steps {
+                echo 'Running SonarQube Analysis...'
+                withSonarQubeEnv("${SONARQUBE}") {
+                    sh 'sonar-scanner'
                 }
             }
         }
 
-        // Start the application in development mode using npx turbo dev
-        stage('Start Application') {
+        stage('Dockerize Application') {
             steps {
+                echo 'Building Docker Image...'
                 script {
-                    echo 'Starting Application in Development Mode...'
-                    sh 'npx turbo dev'  // Runs the application in development mode
+                    dockerImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_ID}")
                 }
             }
         }
-    }         
+
+        stage('Push Docker Image to DockerHub') {
+            steps {
+                echo 'Pushing Docker Image to DockerHub...'
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docke-rhub-credentials') {
+                        dockerImage.push()
+                        dockerImage.push('latest') // Tag as latest
+                    }
+                }
+            }
+        }
+
+         stage('Deploy to Production Namespace') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Deploying to Production Namespace...'
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
+                    script {
+                        // Update deployment.yaml with the new image tag and namespace
+                        sh """
+                            sed -i 's|<IMAGE_NAME>:latest|${DOCKER_IMAGE}:${env.BUILD_ID}|g' k8s/deployment.yaml
+                            sed -i 's|namespace: development|namespace: production|g' k8s/deployment.yaml
+                            sed -i 's|namespace: development|namespace: production|g' k8s/service.yaml
+                            kubectl apply -f k8s/deployment.yaml --namespace=${PROD_NAMESPACE}
+                            kubectl apply -f k8s/service.yaml --namespace=${PROD_NAMESPACE}
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up workspace...'
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Check the logs for details.'
+        }
+    }
 }
