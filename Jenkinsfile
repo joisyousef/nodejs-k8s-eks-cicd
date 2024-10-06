@@ -60,7 +60,7 @@ pipeline {
         stage('Code Analysis with SonarQube') {
             steps {
                 echo 'Running SonarQube Analysis...'
-                withSonarQubeEnv("${SONA    RQUBE}") {
+                withSonarQubeEnv("${SONARQUBE}") {
                     sh 'sonar-scanner'
                 }
             }
