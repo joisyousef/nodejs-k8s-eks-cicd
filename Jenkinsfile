@@ -30,7 +30,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 echo 'Installing Dependencies...'
-                sh 'npm install' // Changed from 'npm ci' to 'npm install'
+                sh 'npm ci'
             }
         }
 
@@ -88,7 +88,7 @@ pipeline {
                     script {
                         // Update deployment.yaml with the new image tag and namespace
                         sh """
-                            sed -i 's|<IMAGE_NAME>:latest|${DOCKER_IMAGE}:${env.BUILD_ID}|g' k8s/deployment.yaml
+                            sed -i 's|joisyousef/nodejs-app:latest|${DOCKER_IMAGE}:${env.BUILD_ID}|g' k8s/deployment.yaml
                             sed -i 's|namespace: development|namespace: production|g' k8s/deployment.yaml
                             sed -i 's|namespace: development|namespace: production|g' k8s/service.yaml
                             kubectl apply -f k8s/deployment.yaml --namespace=${PROD_NAMESPACE}
