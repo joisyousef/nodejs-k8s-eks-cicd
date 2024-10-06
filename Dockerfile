@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Copy the rest of the application code
 COPY . .
@@ -32,4 +32,4 @@ RUN npm install --only=production
 EXPOSE 3000
 
 # Start the application
-CMD ["node", "app.js"]
+CMD ["npx", "turbo", "dev"]

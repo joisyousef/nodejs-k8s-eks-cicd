@@ -2,16 +2,17 @@ pipeline {
     agent { label 'jenkins-agent' }
 
     environment {
-        SONARQUBE = 'SonarQube-Server-Name' // Replace with your SonarQube server name
+        SONARQUBE = 'SonarQube-Server-Name'
         GIT_REPO = 'https://gitlab.com/joisyousef/nodejs.org.git'
         RELEASE = "1.0.0"
         DOCKER_USER = "joisyousef"
         DOCKER_PASS = "docker-hub-credentials"
-        APP_NAME = "your-app-name" // Define your application name
+        APP_NAME = "your-app-name"
         IMAGE_NAME = "${DOCKER_USER}/${APP_NAME}"
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
         DEV_NAMESPACE = "development"
         PROD_NAMESPACE = "production"
+        NEXT_TELEMETRY_DISABLED = '1'
     }
 
     stages {
@@ -48,10 +49,11 @@ pipeline {
             }
         }
 
-        stage('Run Application') {
+
+        stage('Build Application') {
             steps {
                 echo 'Building the Application...'
-                sh 'npx turbo dev'
+                sh 'npx turbo build || { echo "Build failed"; exit 1; }'
             }
         }
 
