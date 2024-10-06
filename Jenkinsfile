@@ -6,7 +6,7 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
 
         // SonarQube Server configuration name as defined in Jenkins
-        SONARQUBE = 'Sonarqube-scanner'
+        SONARQUBE = 'jenkins-sonar-token'
 
         // GitLab Repository URL
         GIT_REPO = 'https://gitlab.com/joisyousef/nodejs.org.git'
