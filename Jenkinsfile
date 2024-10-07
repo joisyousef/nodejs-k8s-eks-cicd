@@ -79,18 +79,6 @@ pipeline {
     }
 }
 
-        // stage('Build & Push Docker Image') {
-        //     steps {
-        //         script {
-        //             docker.withRegistry('https://registry.hub.docker.com', 'docker-hub-credentials') {
-        //                 def dockerImage = docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
-        //                 dockerImage.push("${IMAGE_TAG}")
-        //                 dockerImage.push('latest')
-        //             }
-        //         }
-        //     }
-        // }
-
 
         // stage("Build & Push Docker Image") {
         //     steps {
@@ -118,35 +106,35 @@ pipeline {
             }
         }
 
-    //      stage('Deploy to Development') {
-    //         steps {
-    //             script {
-    //                 sh 'kubectl apply -f k8s/deployment.yaml --namespace=development'
-    //                 sh 'kubectl apply -f k8s/service.yaml --namespace=development'
-    //             }
-    //         }
-    //     }
+         stage('Deploy to Development') {
+            steps {
+                script {
+                    sh 'kubectl apply -f k8s/deployment.yaml --namespace=development'
+                    sh 'kubectl apply -f k8s/service.yaml --namespace=development'
+                }
+            }
+        }
 
-    //      stage('Smoke Test') {
-    //         steps {
-    //             // Implement your smoke test commands here
-    //             sh 'curl -f http://<development-service-ip>'
-    //         }
-    //     }
+        //  stage('Smoke Test') {
+        //     steps {
+        //         // Implement your smoke test commands here
+        //         sh 'curl -f http://<development-service-ip>'
+        //     }
+        // }
 
 
-    //     stage('Deploy to Production') {
-    //         when {
-    //             branch 'main'
-    //         }
-    //         steps {
-    //             script {
-    //                 sh 'kubectl apply -f k8s/deployment.yaml --namespace=production'
-    //                 sh 'kubectl apply -f k8s/service.yaml --namespace=production'
-    //             }
-    //         }
-    //     }
-    // }
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    sh 'kubectl apply -f k8s/deployment.yaml --namespace=production'
+                    sh 'kubectl apply -f k8s/service.yaml --namespace=production'
+                }
+            }
+        }
+    }
 
 
         stage('Cleanup Artifacts') {

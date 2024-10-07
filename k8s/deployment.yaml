@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: nodejs-app
-        image: joisyousef/nodejs-app:latest
+        image: jjoisyousef/nodejs-k8s-eks-cicd:latest
         ports:
         - containerPort: 3000
         env:
