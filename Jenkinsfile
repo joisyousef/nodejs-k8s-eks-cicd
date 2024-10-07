@@ -69,26 +69,23 @@ pipeline {
             }
         }
 
-        stage("SonarQube Analysis") {
-            steps {
-                script {
-                    withSonarQubeEnv("${SONARQUBE}") { // Use SonarQube server name
-                        withCredentials([string(credentialsId: 'jenkins-token-v2', variable: 'SONAR_TOKEN')]) { // Use credentials ID for token
-                            // Run the sonar-scanner with necessary properties
-                            sh '''
-                            npx sonar-scanner \
-                              -Dsonar.projectKey=nodejs-k8s-eks-cicd \
-                              -Dsonar.projectName="nodejs-k8s-eks-cicd" \
-                              -Dsonar.projectVersion="1.0.0" \
-                              -Dsonar.sources=. \
-                              -Dsonar.login=$SONAR_TOKEN \
-                              || { echo "SonarQube analysis failed"; exit 1; }
-                            '''
-                        }
-                    }
-                }
+         stage("SonarQube Analysis") {
+          steps {
+            script {
+              withSonarQubeEnv(credentialsId: 'jenkins-token-v2') {
+                // Run the sonar-scanner with necessary properties
+                sh '''
+                npx sonar-scanner \
+                  -Dsonar.projectKey=nodejs-k8s-eks-cicd \
+                  -Dsonar.projectName="nodejs-k8s-eks-cicd" \
+                  -Dsonar.projectVersion="1.0.0" \
+                  -Dsonar.sources=. \
+                  || { echo "SonarQube analysis failed"; exit 1; }
+                '''
             }
         }
+    }
+}
 
 
         // stage("Build & Push Docker Image") {
@@ -104,7 +101,7 @@ pipeline {
         //         }
         //     }
         // }
-        
+
 
         stage("Trivy Scan") {
             steps {
