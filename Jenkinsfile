@@ -3,9 +3,7 @@ pipeline {
 
     environment {
         SONARQUBE = 'SonarQube'
-
         GIT_REPO = 'https://gitlab.com/joisyousef/nodejs.org.git'
-
         RELEASE = "1.0.0"
         DOCKER_USER = "joisyousef"
         DOCKER_PASS = "docker-hub-credentials" // Jenkins credentials ID for Docker Hub
@@ -14,7 +12,6 @@ pipeline {
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
         DEV_NAMESPACE = "development"
         PROD_NAMESPACE = "production"
-
         NEXT_TELEMETRY_DISABLED = '1'
     }
 
@@ -46,7 +43,6 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 echo 'Installing Dependencies...'
-                // Attempt 'npm ci', fallback to 'npm install' if 'package-lock.json' is missing
                 sh 'npm ci || npm install || { echo "Failed to install dependencies"; exit 1; }'
             }
         }
@@ -65,105 +61,87 @@ pipeline {
             }
         }
 
-         stage("SonarQube Analysis") {
-          steps {
-            script {
-              withSonarQubeEnv(credentialsId: 'jenkins-token-v2') {
-                sh '''
-                npx sonar-scanner \
-                  -Dsonar.projectKey=nodejs-k8s-eks-cicd \
-                  -Dsonar.projectName="nodejs-k8s-eks-cicd" \
-                  -Dsonar.projectVersion="1.0.0" \
-                  -Dsonar.sources=. \
-                  || { echo "SonarQube analysis failed"; exit 1; }
-                '''
-            }
-        }
-    }
-}
-
-   stage('Dockerize') {
-    steps {
-        script {
-            try {
-                echo "Building Docker image..."
-                dockerImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_ID}")
-                echo "Docker image built successfully: ${dockerImage}"
-            } catch (Exception e) {
-                echo "Docker build failed: ${e.getMessage()}"
-                currentBuild.result = 'FAILURE'
-                error("Stopping pipeline due to Docker build failure.")
-            }
-        }
-    }
-}
-
-      stage('Push Docker Image to DockerHub') {
+        stage("SonarQube Analysis") {
             steps {
-                echo 'Pushing Docker Image to DockerHub...'
                 script {
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
-                        dockerImage.push()
-                        dockerImage.push('latest')
+                    withSonarQubeEnv(credentialsId: 'jenkins-token-v2') {
+                        sh '''
+                        npx sonar-scanner \
+                          -Dsonar.projectKey=nodejs-k8s-eks-cicd \
+                          -Dsonar.projectName="nodejs-k8s-eks-cicd" \
+                          -Dsonar.projectVersion="${RELEASE}" \
+                          -Dsonar.sources=. \
+                          || { echo "SonarQube analysis failed"; exit 1; }
+                        '''
                     }
                 }
             }
         }
 
+        stage('Dockerize') {
+            steps {
+                script {
+                    try {
+                        echo "Building Docker image..."
+                        dockerImage = docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                        echo "Docker image built successfully: ${dockerImage}"
+                    } catch (Exception e) {
+                        echo "Docker build failed: ${e.getMessage()}"
+                        currentBuild.result = 'FAILURE'
+                        error("Stopping pipeline due to Docker build failure.")
+                    }
+                }
+            }
+        }
 
-      stage("Trivy Scan") {
-          steps {
-              script {
-                  sh """
-                      docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${IMAGE_TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table
-                  """
-              }
-          }
-      }
+        stage('Push Docker Image to DockerHub') {
+            steps {
+                script {
+                    try {
+                        echo 'Pushing Docker Image to DockerHub...'
+                        docker.withRegistry('https://registry.hub.docker.com', DOCKER_PASS) {
+                            dockerImage.push("${IMAGE_TAG}") // Push the specific tag
+                            dockerImage.push('latest') // Optionally push latest
+                        }
+                        echo "Docker image pushed successfully."
+                    } catch (Exception e) {
+                        echo "Failed to push Docker image: ${e.getMessage()}"
+                        currentBuild.result = 'FAILURE'
+                        error("Stopping pipeline due to Docker push failure.")
+                    }
+                }
+            }
+        }
 
+        stage("Trivy Scan") {
+            steps {
+                script {
+                    sh """
+                        docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${IMAGE_TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table
+                    """
+                }
+            }
+        }
 
         stage('Create Namespaces') {
             steps {
                 script {
                     sh '''
-                        kubectl create namespace development || echo "Namespace development already exists"
-                        kubectl create namespace production || echo "Namespace production already exists"
+                        kubectl create namespace ${DEV_NAMESPACE} || echo "Namespace ${DEV_NAMESPACE} already exists"
+                        kubectl create namespace ${PROD_NAMESPACE} || echo "Namespace ${PROD_NAMESPACE} already exists"
                     '''
                 }
             }
         }
 
-
         stage('Deploy to Development') {
             steps {
                 script {
-                    sh 'kubectl apply -f k8s/deployment.yaml --namespace=development'
-                    sh 'kubectl apply -f k8s/service.yaml --namespace=development'
+                    sh 'kubectl apply -f k8s/deployment.yaml --namespace=${DEV_NAMESPACE}'
+                    sh 'kubectl apply -f k8s/service.yaml --namespace=${DEV_NAMESPACE}'
                 }
             }
         }
-
-
-//        stage('Smoke Test') {
-//         steps {
-//         echo 'Running Smoke Tests...'
-//         sh '''
-//             # Define the service health endpoint
-//             SERVICE_URL="http://localhost/health"
-
-//             # Perform the smoke test
-//             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $SERVICE_URL)
-
-//             if [ "$HTTP_STATUS" -ne 200 ]; then
-//                 echo "Smoke Test Failed: Received HTTP status $HTTP_STATUS"
-//                 exit 1
-//             else
-//                 echo "Smoke Test Passed: Received HTTP status $HTTP_STATUS"
-//                 exit 0
-//             fi
-//         '''
-//     }
-// }
 
         stage('Deploy to Production') {
             when {
@@ -171,12 +149,11 @@ pipeline {
             }
             steps {
                 script {
-                    sh 'kubectl apply -f k8s/deployment.yaml --namespace=production'
-                    sh 'kubectl apply -f k8s/service.yaml --namespace=production'
+                    sh 'kubectl apply -f k8s/deployment.yaml --namespace=${PROD_NAMESPACE}'
+                    sh 'kubectl apply -f k8s/service.yaml --namespace=${PROD_NAMESPACE}'
                 }
             }
         }
-
 
         stage('Cleanup Artifacts') {
             steps {
@@ -187,7 +164,6 @@ pipeline {
             }
         }
     }
-
 
     post {
         always {
