@@ -106,6 +106,16 @@ pipeline {
             }
         }
 
+        stage('Create NS') {
+
+            steps {
+                script {
+                    sh 'kubectl create namespace development'
+                    sh 'kubectl create namespace production'
+                }
+            }
+        }
+
          stage('Deploy to Development') {
             steps {
                 script {
@@ -147,7 +157,7 @@ pipeline {
         }
 
 
-        }
+
 
     post {
         always {
@@ -163,4 +173,5 @@ pipeline {
             // Add failure notification steps here (e.g., email, Slack)
         }
     }
+
 }
