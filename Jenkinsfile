@@ -2,13 +2,10 @@ pipeline {
     agent { label 'jenkins-agent' }
 
     environment {
-        // SonarQube server name as configured in Jenkins
-        SONARQUBE = 'SonarQube' // Replace with your actual SonarQube server name in Jenkins
+        SONARQUBE = 'SonarQube'
 
-        // GitLab Repository URL
         GIT_REPO = 'https://gitlab.com/joisyousef/nodejs.org.git'
 
-        // Application Release Information
         RELEASE = "1.0.0"
         DOCKER_USER = "joisyousef"
         DOCKER_PASS = "docker-hub-credentials" // Jenkins credentials ID for Docker Hub
@@ -18,7 +15,6 @@ pipeline {
         DEV_NAMESPACE = "development"
         PROD_NAMESPACE = "production"
 
-        // Disable Next.js telemetry
         NEXT_TELEMETRY_DISABLED = '1'
     }
 
@@ -73,7 +69,6 @@ pipeline {
           steps {
             script {
               withSonarQubeEnv(credentialsId: 'jenkins-token-v2') {
-                // Run the sonar-scanner with necessary properties
                 sh '''
                 npx sonar-scanner \
                   -Dsonar.projectKey=nodejs-k8s-eks-cicd \
@@ -87,36 +82,36 @@ pipeline {
     }
 }
 
-      // stage('Dockerize') {
-      //           steps {
-      //               script {
-      //                   dockerImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_ID}")
-      //               }
-      //           }
-      //       }
+      stage('Dockerize') {
+                steps {
+                    script {
+                        dockerImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_ID}")
+                    }
+                }
+            }
 
 
-      // stage('Push to DockerHub') {
-      //       steps {
-      //           script {
-      //              docker.withRegistry('',DOCKER_PASS) {
-      //                   dockerImage.push("${IMAGE_TAG}")
-      //                   dockerImage.push('latest')
-      //               }
-      //           }
-      //       }
-      //   }
+      stage('Push to DockerHub') {
+            steps {
+                script {
+                   docker.withRegistry('',DOCKER_PASS) {
+                        dockerImage.push("${IMAGE_TAG}")
+                        dockerImage.push('latest')
+                    }
+                }
+            }
+        }
 
 
-      // stage("Trivy Scan") {
-      //     steps {
-      //         script {
-      //             sh """
-      //                 docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${IMAGE_TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table
-      //             """
-      //         }
-      //     }
-      // }
+      stage("Trivy Scan") {
+          steps {
+              script {
+                  sh """
+                      docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${IMAGE_TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table
+                  """
+              }
+          }
+      }
 
 
         stage('Create Namespaces') {
@@ -162,11 +157,9 @@ pipeline {
 //     }
 // }
 
-
-
         stage('Deploy to Production') {
             when {
-                branch 'main' // Only deploy to production from the main branch
+                branch 'main'
             }
             steps {
                 script {
@@ -195,11 +188,9 @@ pipeline {
         }
         success {
             echo 'Pipeline completed successfully!'
-            // Add success notification steps here (e.g., email, Slack)
         }
         failure {
             echo 'Pipeline failed. Please check the logs.'
-            // Add failure notification steps here (e.g., email, Slack)
         }
     }
 }
