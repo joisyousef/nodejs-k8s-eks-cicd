@@ -87,36 +87,41 @@ pipeline {
     }
 }
 
-
-        // stage("Build & Push Docker Image") {
-        //     steps {
-        //         script {
-        //             docker.withRegistry('',DOCKER_PASS) {
-        //                 docker_image = docker.build "${IMAGE_NAME}"
-        //             }
-        //             docker.withRegistry('',DOCKER_PASS) {
-        //                 docker_image.push("${IMAGE_TAG}")
-        //                 docker_image.push('latest')
-        //             }
-        //         }
-        //     }
-        // }
+      // stage('Dockerize') {
+      //           steps {
+      //               script {
+      //                   dockerImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_ID}")
+      //               }
+      //           }
+      //       }
 
 
-        // stage("Trivy Scan") {
-        //     steps {
-        //         script {
-        //             sh """
-        //                 docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${IMAGE_TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table
-        //             """
-        //         }
-        //     }
-        // }
+      // stage('Push to DockerHub') {
+      //       steps {
+      //           script {
+      //              docker.withRegistry('',DOCKER_PASS) {
+      //                   dockerImage.push("${IMAGE_TAG}")
+      //                   dockerImage.push('latest')
+      //               }
+      //           }
+      //       }
+      //   }
+
+
+      // stage("Trivy Scan") {
+      //     steps {
+      //         script {
+      //             sh """
+      //                 docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:${IMAGE_TAG} --no-progress --scanners vuln --exit-code 0 --severity HIGH,CRITICAL --format table
+      //             """
+      //         }
+      //     }
+      // }
+
 
         stage('Create Namespaces') {
             steps {
                 script {
-                    // Create Kubernetes namespaces if they don't already exist
                     sh '''
                         kubectl create namespace development || echo "Namespace development already exists"
                         kubectl create namespace production || echo "Namespace production already exists"
@@ -124,6 +129,7 @@ pipeline {
                 }
             }
         }
+
 
         stage('Deploy to Development') {
             steps {
@@ -134,16 +140,29 @@ pipeline {
             }
         }
 
-        // Uncomment and implement the Smoke Test stage as needed
-        /*
-        stage('Smoke Test') {
-            steps {
-                echo 'Running Smoke Tests...'
-                // Replace <development-service-ip> with your actual service URL or use Kubernetes DNS
-                sh 'curl -f http://nodejs-service.development.svc.cluster.local/health || { echo "Smoke Test Failed"; exit 1; }'
-            }
-        }
-        */
+
+//        stage('Smoke Test') {
+//         steps {
+//         echo 'Running Smoke Tests...'
+//         sh '''
+//             # Define the service health endpoint
+//             SERVICE_URL="http://localhost/health"
+
+//             # Perform the smoke test
+//             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $SERVICE_URL)
+
+//             if [ "$HTTP_STATUS" -ne 200 ]; then
+//                 echo "Smoke Test Failed: Received HTTP status $HTTP_STATUS"
+//                 exit 1
+//             else
+//                 echo "Smoke Test Passed: Received HTTP status $HTTP_STATUS"
+//                 exit 0
+//             fi
+//         '''
+//     }
+// }
+
+
 
         stage('Deploy to Production') {
             when {
@@ -157,6 +176,7 @@ pipeline {
             }
         }
 
+
         stage('Cleanup Artifacts') {
             steps {
                 script {
@@ -166,6 +186,7 @@ pipeline {
             }
         }
     }
+
 
     post {
         always {
