@@ -2,16 +2,23 @@ pipeline {
     agent { label 'jenkins-agent' }
 
     environment {
-        SONARQUBE = 'jenkins-token-v2'
+        // SonarQube server name as configured in Jenkins
+        SONARQUBE = 'SonarQube' // Replace with your actual SonarQube server name in Jenkins
+
+        // GitLab Repository URL
         GIT_REPO = 'https://gitlab.com/joisyousef/nodejs.org.git'
+
+        // Application Release Information
         RELEASE = "1.0.0"
         DOCKER_USER = "joisyousef"
-        DOCKER_PASS = "docker-hub-credentials"
+        DOCKER_PASS = "docker-hub-credentials" // Jenkins credentials ID for Docker Hub
         APP_NAME = "nodejs-k8s-eks-cicd"
         IMAGE_NAME = "${DOCKER_USER}/${APP_NAME}"
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
         DEV_NAMESPACE = "development"
         PROD_NAMESPACE = "production"
+
+        // Disable Next.js telemetry
         NEXT_TELEMETRY_DISABLED = '1'
     }
 
@@ -43,11 +50,12 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 echo 'Installing Dependencies...'
+                // Attempt 'npm ci', fallback to 'npm install' if 'package-lock.json' is missing
                 sh 'npm ci || npm install || { echo "Failed to install dependencies"; exit 1; }'
             }
         }
 
-          stage('Run Unit Tests') {
+        stage('Run Unit Tests') {
             steps {
                 echo 'Running Unit Tests...'
                 sh 'npx turbo test:unit || { echo "Unit tests failed"; exit 1; }'
@@ -62,22 +70,25 @@ pipeline {
         }
 
         stage("SonarQube Analysis") {
-          steps {
-            script {
-              withSonarQubeEnv(credentialsId: 'jenkins-token-v2') {
-                // Run the sonar-scanner with necessary properties
-                sh '''
-                npx sonar-scanner \
-                  -Dsonar.projectKey=nodejs-k8s-eks-cicd \
-                  -Dsonar.projectName="nodejs-k8s-eks-cicd" \
-                  -Dsonar.projectVersion="1.0.0" \
-                  -Dsonar.sources=. \
-                  || { echo "SonarQube analysis failed"; exit 1; }
-                '''
+            steps {
+                script {
+                    withSonarQubeEnv("${SONARQUBE}") { // Use SonarQube server name
+                        withCredentials([string(credentialsId: 'jenkins-token-v2', variable: 'SONAR_TOKEN')]) { // Use credentials ID for token
+                            // Run the sonar-scanner with necessary properties
+                            sh '''
+                            npx sonar-scanner \
+                              -Dsonar.projectKey=nodejs-k8s-eks-cicd \
+                              -Dsonar.projectName="nodejs-k8s-eks-cicd" \
+                              -Dsonar.projectVersion="1.0.0" \
+                              -Dsonar.sources=. \
+                              -Dsonar.login=$SONAR_TOKEN \
+                              || { echo "SonarQube analysis failed"; exit 1; }
+                            '''
+                        }
+                    }
+                }
             }
         }
-    }
-}
 
 
         // stage("Build & Push Docker Image") {
@@ -86,17 +97,16 @@ pipeline {
         //             docker.withRegistry('',DOCKER_PASS) {
         //                 docker_image = docker.build "${IMAGE_NAME}"
         //             }
-
         //             docker.withRegistry('',DOCKER_PASS) {
         //                 docker_image.push("${IMAGE_TAG}")
         //                 docker_image.push('latest')
         //             }
         //         }
         //     }
-
         // }
+        
 
-         stage("Trivy Scan") {
+        stage("Trivy Scan") {
             steps {
                 script {
                     sh """
@@ -106,17 +116,19 @@ pipeline {
             }
         }
 
-        stage('Create NS') {
-
+        stage('Create Namespaces') {
             steps {
                 script {
-                    sh 'kubectl create namespace development'
-                    sh 'kubectl create namespace production'
+                    // Create Kubernetes namespaces if they don't already exist
+                    sh '''
+                        kubectl create namespace development || echo "Namespace development already exists"
+                        kubectl create namespace production || echo "Namespace production already exists"
+                    '''
                 }
             }
         }
 
-         stage('Deploy to Development') {
+        stage('Deploy to Development') {
             steps {
                 script {
                     sh 'kubectl apply -f k8s/deployment.yaml --namespace=development'
@@ -125,17 +137,20 @@ pipeline {
             }
         }
 
-        //  stage('Smoke Test') {
-        //     steps {
-        //         // Implement your smoke test commands here
-        //         sh 'curl -f http://<development-service-ip>'
-        //     }
-        // }
-
+        // Uncomment and implement the Smoke Test stage as needed
+        /*
+        stage('Smoke Test') {
+            steps {
+                echo 'Running Smoke Tests...'
+                // Replace <development-service-ip> with your actual service URL or use Kubernetes DNS
+                sh 'curl -f http://nodejs-service.development.svc.cluster.local/health || { echo "Smoke Test Failed"; exit 1; }'
+            }
+        }
+        */
 
         stage('Deploy to Production') {
             when {
-                branch 'main'
+                branch 'main' // Only deploy to production from the main branch
             }
             steps {
                 script {
@@ -144,20 +159,16 @@ pipeline {
                 }
             }
         }
-    }
-
 
         stage('Cleanup Artifacts') {
             steps {
                 script {
-                    sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
-                    sh "docker rmi ${IMAGE_NAME}:latest"
+                    sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
+                    sh "docker rmi ${IMAGE_NAME}:latest || true"
                 }
             }
         }
-
-
-
+    }
 
     post {
         always {
@@ -173,5 +184,4 @@ pipeline {
             // Add failure notification steps here (e.g., email, Slack)
         }
     }
-
 }
