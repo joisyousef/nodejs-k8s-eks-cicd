@@ -98,24 +98,17 @@ pipeline {
     }
 }
 
-stage('Push to DockerHub') {
-    steps {
-        script {
-            try {
-                echo "Pushing Docker image to DockerHub..."
-                docker.withRegistry('', DOCKER_PASS) {
-                    dockerImage.push("${IMAGE_TAG}")
-                    dockerImage.push('latest')
+      stage('Push Docker Image to DockerHub') {
+            steps {
+                echo 'Pushing Docker Image to DockerHub...'
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
+                        dockerImage.push()
+                        dockerImage.push('latest')
+                    }
                 }
-                echo "Docker image pushed successfully."
-            } catch (Exception e) {
-                echo "Failed to push Docker image: ${e.getMessage()}"
-                currentBuild.result = 'FAILURE'
-                error("Stopping pipeline due to Docker push failure.")
             }
         }
-    }
-}
 
 
       stage("Trivy Scan") {
