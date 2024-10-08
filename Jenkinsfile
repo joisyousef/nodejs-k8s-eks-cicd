@@ -47,6 +47,14 @@ pipeline {
             }
         }
 
+
+        stage('Run Application') {
+            steps {
+                echo 'Open http://localhost:3000'
+                sh 'npx turbo dev'
+            }
+        }
+
         stage('Run Unit Tests') {
             steps {
                 echo 'Running Unit Tests...'

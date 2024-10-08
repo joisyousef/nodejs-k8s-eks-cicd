@@ -5,10 +5,11 @@ metadata:
   labels:
     app: nodejs
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: nodejs
   ports:
   - protocol: TCP
     port: 80
-    targetPort: 3000
+    targetPort: 3000 # The port your Node.js app is running on inside the pods
+    nodePort: 30080 # The port exposed externally (range 30000-32767)
