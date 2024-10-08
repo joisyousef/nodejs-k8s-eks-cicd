@@ -11,5 +11,4 @@ spec:
   ports:
   - protocol: TCP
     port: 80
-    targetPort: 3000 # The port your Node.js app is running on inside the pods
-    nodePort: 30050 # The port exposed externally (range 30000-32767)
+    targetPort: 3000
